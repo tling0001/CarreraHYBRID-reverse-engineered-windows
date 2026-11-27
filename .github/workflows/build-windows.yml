@@ -1,0 +1,62 @@
+name: Build Carrera Hybrid for Windows
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'Assets/**'
+      - 'Packages/**'
+      - 'ProjectSettings/**'
+      - '.github/workflows/build-windows.yml'
+  pull_request:
+    paths:
+      - 'Assets/**'
+      - 'Packages/**'
+      - 'ProjectSettings/**'
+      - '.github/workflows/build-windows.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: carrera-hybrid-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Windows x64 Player
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate project structure
+        shell: pwsh
+        run: |
+          if (!(Test-Path 'ProjectSettings/ProjectVersion.txt')) { throw 'Unity project version is missing.' }
+          if (!(Test-Path 'Assets/Scenes/Startup.unity')) { throw 'Startup bootstrap scene is missing.' }
+          if (!(Test-Path 'Assets/CarreraHybrid/Scripts/Bootstrap/StartupBootstrap.cs')) { throw 'Bootstrap source is missing.' }
+
+      - name: Build Windows x64
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: .
+          unityVersion: 6000.0.84f1
+          targetPlatform: StandaloneWindows64
+          buildName: CarreraHybrid
+          buildsPath: Builds
+          versioning: None
+
+      - name: Upload Windows build
+        if: always() && hashFiles('Builds/**') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: CarreraHybrid-Windows-x64-${{ github.run_number }}
+          path: Builds/StandaloneWindows64/
+          if-no-files-found: warn
+          retention-days: 14
