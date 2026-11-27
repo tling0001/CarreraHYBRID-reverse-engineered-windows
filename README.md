@@ -20,15 +20,26 @@ This revision contains a newly authored UI navigation prototype for Startup, Log
 - `Esc`: pause.
 - In-race Pause and Finish controls are also available on screen.
 
-## GitHub Actions
+## GitHub Actions and Unity Personal
 
 - `.github/workflows/build-windows.yml` builds a Windows x64 player.
-- `.github/workflows/unity-activation-file.yml` is a manually triggered legacy ALF request workflow. Its artifact is a request file, not a license.
+- Unity Personal is activated through Unity Hub. For GameCI, copy the Hub-created `Unity_lic.ulf` contents into the `UNITY_LICENSE` GitHub secret and configure `UNITY_EMAIL` and `UNITY_PASSWORD`.
+- The ALF request workflow is legacy and is **not** the Personal activation method.
 
-Read [Documentation/UNITY-LICENSE-SETUP.md](Documentation/UNITY-LICENSE-SETUP.md) before configuring license secrets. Unity's current manual activation rules depend on license type; Unity Personal activation should be performed through Unity Hub when manual ALF activation is unsupported.
+Follow [Documentation/UNITY-LICENSE-SETUP.md](Documentation/UNITY-LICENSE-SETUP.md). Do not commit license files or credentials.
 
 ## Asset recovery
 
-Read [Documentation/ASSET-RECOVERY.md](Documentation/ASSET-RECOVERY.md) to export the Android Unity data with AssetRipper, stage the recovered assets safely, and generate an inventory from the Unity Editor using **Carrera Hybrid → Recovery → Generate Asset Inventory**.
+1. Export the Android Unity data with AssetRipper into a separate project folder.
+2. Stage the exported `Assets` directory without overwriting existing work:
+   `powershell -ExecutionPolicy Bypass -File .\Tools\Stage-AssetRipperExport.ps1 -AssetRipperExport "C:\Path\To\AssetRipperExport"`
+3. Open Unity and wait for import.
+4. Run **Carrera Hybrid → Recovery → Generate Asset Inventory**.
 
-See [Documentation/STATUS.md](Documentation/STATUS.md) for verified reverse-engineering findings, limitations and the screen-by-screen fidelity gates.
+See [Documentation/ASSET-RECOVERY.md](Documentation/ASSET-RECOVERY.md) for details. The staging script refuses to overwrite an existing RecoveredAndroid folder.
+
+## Screen reconstruction order
+
+Startup → Login → Menu/Garage → Lobby → Race → Race Result. Each screen should be completed with its reachable dialogs, loading/error states and navigation paths before moving on.
+
+See [Documentation/STATUS.md](Documentation/STATUS.md) for verified findings, limitations and remaining fidelity work.
