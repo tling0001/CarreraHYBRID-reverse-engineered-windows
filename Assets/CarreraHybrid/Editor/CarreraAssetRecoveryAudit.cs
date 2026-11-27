@@ -4,15 +4,17 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 namespace CarreraHybrid.EditorTools
 {
     /// <summary>
-    /// Read-only inventory tool for integrating recovered Android assets.
+    /// Read-only report of recovered Unity assets and scene hierarchies.
     /// </summary>
     public static class CarreraAssetRecoveryAudit
     {
@@ -38,8 +40,8 @@ namespace CarreraHybrid.EditorTools
 
             var counts = new SortedDictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             var keywordMatches = new List<string>();
-            var sceneDetails = new List<string>();
             var typeDetails = new Dictionary<string, List<string>>();
+            var scenes = paths.Where(p => p.EndsWith(".unity", StringComparison.OrdinalIgnoreCase)).ToArray();
 
             foreach (string path in paths)
             {
@@ -47,8 +49,8 @@ namespace CarreraHybrid.EditorTools
                 if (!counts.ContainsKey(extension)) counts[extension] = 0;
                 counts[extension]++;
 
-                string lower = path.ToLowerInvariant();
-                if (Keywords.Any(k => lower.Contains(k))) keywordMatches.Add(path);
+                if (Keywords.Any(k => path.IndexOf(k, StringComparison.OrdinalIgnoreCase) >= 0))
+                    keywordMatches.Add(path);
 
                 UnityEngine.Object asset = AssetDatabase.LoadMainAssetAtPath(path);
                 if (asset == null) continue;
@@ -60,22 +62,6 @@ namespace CarreraHybrid.EditorTools
                     typeDetails[typeName] = list;
                 }
                 list.Add(path);
-
-                if (asset is SceneAsset)
-                {
-                    Scene scene = EditorSceneManager.OpenScene(path, OpenSceneMode.Additive);
-                    foreach (GameObject root in scene.GetRootGameObjects())
-                    {
-                        string components = string.Join(", ", root
-                            .GetComponentsInChildren<Component>(true)
-                            .Where(c => c != null)
-                            .Select(c => c.GetType().Name)
-                            .Distinct()
-                            .OrderBy(n => n, StringComparer.Ordinal));
-                        sceneDetails.Add("- " + path + " / " + root.name + ": " + components);
-                    }
-                    EditorSceneManager.CloseScene(scene, true);
-                }
             }
 
             var sb = new StringBuilder();
@@ -83,8 +69,7 @@ namespace CarreraHybrid.EditorTools
             sb.AppendLine();
             sb.AppendLine("Generated: " + DateTime.UtcNow.ToString("u"));
             sb.AppendLine();
-            sb.AppendLine("Read-only inventory of assets currently imported into this Unity project.");
-            sb.AppendLine("This report does not by itself prove that an asset is the original Android asset.");
+            sb.AppendLine("Read-only inventory of the imported Unity project. Review this report before replacing reconstructed screens.");
             sb.AppendLine();
             sb.AppendLine("## Asset totals");
             sb.AppendLine();
@@ -94,7 +79,7 @@ namespace CarreraHybrid.EditorTools
                 sb.AppendLine("| " + (string.IsNullOrEmpty(pair.Key) ? "(no extension)" : pair.Key) + " | " + pair.Value + " |");
 
             sb.AppendLine();
-            sb.AppendLine("## Key Unity asset types");
+            sb.AppendLine("## Important assets");
             sb.AppendLine();
             string[] importantTypes =
             {
@@ -106,34 +91,113 @@ namespace CarreraHybrid.EditorTools
             {
                 if (!typeDetails.TryGetValue(type, out List<string> list)) continue;
                 sb.AppendLine("### " + type + " (" + list.Count + ")");
-                foreach (string path in list.Take(250)) sb.AppendLine("- " + path);
-                if (list.Count > 250) sb.AppendLine("- " + (list.Count - 250) + " more omitted");
+                foreach (string path in list.Take(500)) sb.AppendLine("- " + path);
+                if (list.Count > 500) sb.AppendLine("- " + (list.Count - 500) + " more omitted");
                 sb.AppendLine();
             }
 
-            sb.AppendLine("## Filename and path keyword matches");
+            sb.AppendLine("## Likely car, track, and UI assets");
             sb.AppendLine();
-            foreach (string path in keywordMatches.Take(1000)) sb.AppendLine("- " + path);
-            if (keywordMatches.Count > 1000) sb.AppendLine("- " + (keywordMatches.Count - 1000) + " more omitted");
+            foreach (string path in keywordMatches.Take(2000)) sb.AppendLine("- " + path);
+            if (keywordMatches.Count > 2000) sb.AppendLine("- " + (keywordMatches.Count - 2000) + " more omitted");
 
             sb.AppendLine();
-            sb.AppendLine("## Scene hierarchy summary");
+            sb.AppendLine("## Recovered scene hierarchy and UI references");
             sb.AppendLine();
-            if (sceneDetails.Count == 0) sb.AppendLine("No imported scenes were found.");
-            else foreach (string line in sceneDetails) sb.AppendLine(line);
+            if (scenes.Length == 0)
+            {
+                sb.AppendLine("No Unity scene assets were imported. Confirm that the AssetRipper export included its scene files.");
+            }
+            else
+            {
+                foreach (string path in scenes)
+                {
+                    Scene scene = default;
+                    bool opened = false;
+                    try
+                    {
+                        scene = EditorSceneManager.OpenScene(path, OpenSceneMode.Additive);
+                        opened = true;
+                        sb.AppendLine("### " + path);
+                        foreach (GameObject root in scene.GetRootGameObjects())
+                            AppendHierarchy(sb, root, 0);
+                        sb.AppendLine();
+                    }
+                    catch (Exception ex)
+                    {
+                        sb.AppendLine("- Could not inspect scene: " + ex.Message);
+                    }
+                    finally
+                    {
+                        if (opened && scene.IsValid())
+                            EditorSceneManager.CloseScene(scene, true);
+                    }
+                }
+            }
 
+            sb.AppendLine("## Next checks");
             sb.AppendLine();
-            sb.AppendLine("## Next manual checks");
-            sb.AppendLine();
-            sb.AppendLine("- Map imported scenes to Startup, Login, Menu, Lobby, Race, and Race Result.");
-            sb.AppendLine("- Check car and track meshes for materials, textures, shaders, animation controllers, and missing scripts.");
-            sb.AppendLine("- Compare UI sprites, fonts, layouts, and text against Android screenshots before replacing approximations.");
-            sb.AppendLine("- Preserve imported originals; make Windows shader/material fixes in duplicated assets.");
+            sb.AppendLine("- Identify the original Startup and Login canvases, their panels, buttons, text, fonts, sprites, animations, and navigation.");
+            sb.AppendLine("- Verify the Menu and Garage car prefabs, meshes, materials, textures, and camera setup.");
+            sb.AppendLine("- Trace Lobby track/car selection references and the Race scene's vehicle, track, camera, HUD, and physics components.");
+            sb.AppendLine("- Check missing scripts and shaders before attempting to run an exported scene.");
+            sb.AppendLine("- Preserve imported source assets. Apply Windows-specific fixes to duplicated assets.");
 
             File.WriteAllText(outputPath, sb.ToString(), new UTF8Encoding(false));
             AssetDatabase.Refresh();
             EditorUtility.RevealInFinder(outputPath);
             Debug.Log("Carrera Hybrid asset inventory written to: " + outputPath);
+        }
+
+        private static void AppendHierarchy(StringBuilder sb, GameObject gameObject, int depth)
+        {
+            string indent = new string(' ', depth * 2);
+            int missing = GameObjectUtility.GetMonoBehavioursWithMissingScriptCount(gameObject);
+            sb.Append(indent).Append("- **").Append(gameObject.name).Append("**");
+            if (missing > 0) sb.Append(" [missing scripts: ").Append(missing).Append("]");
+            sb.AppendLine();
+
+            foreach (Component component in gameObject.GetComponents<Component>())
+            {
+                if (component == null) continue;
+
+                if (component is Canvas canvas)
+                    sb.Append(indent).Append("  - Canvas: ").Append(canvas.renderMode).AppendLine();
+                else if (component is Image image)
+                    sb.Append(indent).Append("  - Image sprite: ").Append(AssetPath(image.sprite)).AppendLine();
+                else if (component is SpriteRenderer spriteRenderer)
+                    sb.Append(indent).Append("  - SpriteRenderer: ").Append(AssetPath(spriteRenderer.sprite)).AppendLine();
+                else if (component is TMP_Text tmp)
+                    sb.Append(indent).Append("  - TMP text: ").Append(SingleLine(tmp.text))
+                        .Append(" | font: ").Append(AssetPath(tmp.font)).AppendLine();
+                else if (component is Text text)
+                    sb.Append(indent).Append("  - UI Text: ").Append(SingleLine(text.text))
+                        .Append(" | font: ").Append(AssetPath(text.font)).AppendLine();
+                else if (component is Animator animator)
+                    sb.Append(indent).Append("  - Animator: ").Append(AssetPath(animator.runtimeAnimatorController)).AppendLine();
+                else if (component is Button button)
+                    sb.Append(indent).Append("  - Button interactable: ").Append(button.interactable).AppendLine();
+                else if (component is TMP_InputField)
+                    sb.Append(indent).AppendLine("  - TMP Input Field");
+                else if (component is InputField)
+                    sb.Append(indent).AppendLine("  - Input Field");
+                else if (!(component is Transform))
+                    sb.Append(indent).Append("  - Component: ").Append(component.GetType().FullName).AppendLine();
+            }
+
+            foreach (Transform child in gameObject.transform)
+                AppendHierarchy(sb, child.gameObject, depth + 1);
+        }
+
+        private static string AssetPath(UnityEngine.Object asset)
+        {
+            return asset == null ? "(none)" : AssetDatabase.GetAssetPath(asset);
+        }
+
+        private static string SingleLine(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return string.Empty;
+            return value.Replace("\r", " ").Replace("\n", " ").Replace("|", "/");
         }
     }
 }
