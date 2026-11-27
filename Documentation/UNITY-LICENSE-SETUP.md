@@ -1,68 +1,59 @@
-# Unity CI license setup (Carrera Hybrid)
+# Unity Personal license setup for Carrera Hybrid
 
-## 1. Request the GitHub runner activation file
+You do not need Unity Pro, a serial key, or an ALF file for Unity Personal.
 
-The repository contains a manual workflow at:
+## A. Activate Personal on your Windows PC
 
-`.github/workflows/unity-activation-file.yml`
+1. Install/update Unity Hub from https://unity.com/download.
+2. Open Unity Hub and sign in with the Unity account you want to use for this project.
+3. Open **Settings → Licenses**.
+4. If a Personal license is already listed as active, you are activated.
+5. If not, select **Add license → Get a free Personal license**.
+6. Accept the terms with **Agree and get personal edition license**.
 
-1. Open the repository on GitHub.
-2. Select **Actions**.
-3. Select **Request Unity activation file (legacy ALF)**.
-4. Select **Run workflow** on the `main` branch.
-5. Wait for the run to finish successfully.
-6. Open that run and scroll to **Artifacts** at the bottom.
-7. Download **Unity-Activation-Request-ALF** and extract the ZIP. It contains a file named similar to `Unity_v6000.0.84f1.alf`.
-8. The workflow only uploads the request file as an artifact. It does not print the file contents or any credentials in the logs.
+Unity says signing in to Unity Hub automatically activates Personal; the Add license flow is available if it did not. Personal activation and return are Hub-only. See https://docs.unity.com/en-us/hub/manage-license.
 
-The action used by this workflow is GameCI's legacy `unity-request-activation-file@v2`. The action's own repository now marks it as no longer maintained. It is retained here because it implements the requested ALF artifact flow. See the GameCI activation documentation before relying on it.
+## B. Get the .ulf for GitHub Actions
 
-## 2. Convert the ALF into a Unity license
+GameCI's current GitHub Actions v4 instructions document using the Personal license created by Unity Hub as a CI secret:
 
-Sign in to your Unity account, then open:
+1. In Unity Hub, open **Settings → Licenses**.
+2. Select **Add license → Get a free Personal license**, and complete the activation flow even if the license appears to be present already. GameCI notes this ensures the license file is created.
+3. In Windows File Explorer, enter this path in the address bar: C:\ProgramData\Unity
+4. Locate Unity_lic.ulf. The ProgramData folder may be hidden; enable **View → Show → Hidden items** if necessary.
+5. Open Unity_lic.ulf with Notepad and copy its entire contents. Do not upload the file to the repository or paste it into a chat.
+6. In GitHub, open **Settings → Secrets and variables → Actions → New repository secret**.
+7. Create these three secrets:
 
-https://license.unity3d.com/manual
+| Secret | Value |
+|---|---|
+| UNITY_LICENSE | Entire contents of Unity_lic.ulf |
+| UNITY_EMAIL | Email address of the Unity account used to activate Personal |
+| UNITY_PASSWORD | Password for that Unity account |
 
-Upload the extracted `.alf` file and follow the portal instructions. Depending on the subscription/license type and current Unity activation rules, Unity may return a `.ulf` or `.xml` license file.
+GameCI v4's current GitHub activation guide documents these steps and the Windows license path: https://game.ci/docs/github/activation/.
 
-**Important license-type limitation:** Unity's current manual-activation documentation says manual activation does not support Unity Personal, Unity Pro assigned seats, or floating licenses. It supports assigned seats on Enterprise/Industry and legacy serial-based Pro licenses. If you use Unity Personal, activate Unity through Unity Hub with your Unity ID instead; do not try to bypass the portal's license-type checks. A generated ALF is only a request, not a license.
+**Do not use the .alf workflow for Personal.** The ALF workflow in this repository is retained only as a legacy workflow for license types supported by Unity's manual activation portal. Unity explicitly excludes Personal from manual activation: https://docs.unity.com/en-us/engine/6000.6/manual/get-started/install-and-upgrade/licenses-and-activation/manual-license-activation/manual-activation-guide.
 
-Unity documentation:
-- https://docs.unity.com/en-us/engine/6000.6/manual/get-started/install-and-upgrade/licenses-and-activation/manual-license-activation/manual-activation-hub
-- https://docs.unity.com/en-us/engine/6000.6/manual/get-started/install-and-upgrade/licenses-and-activation/manual-license-activation/manual-activation-cmd-win
+## C. Personal license seat behavior
 
-## 3. Add the license to GitHub Actions
+GameCI's guide says to sign out of Unity Hub after copying the .ulf for CI use. Signing out returns the Personal license on your local machine; the CI runner then activates using the license secret and credentials. If you want to keep using Unity Editor locally at the same time, be aware of Unity's Personal activation/device restrictions and avoid concurrent activations that compete for the same entitlement. See GameCI's current guide for its return-license notes.
 
-If Unity returns a `.ulf` license file and your license type permits this CI activation method:
+## D. Run the Windows build
 
-1. Open the `.ulf` file in a text editor.
-2. Copy its **entire contents** (including XML/license tags).
-3. In GitHub, open **Settings → Secrets and variables → Actions → New repository secret**.
-4. Create:
-   - `UNITY_LICENSE`: complete contents of the `.ulf` file.
-   - `UNITY_EMAIL`: the email address for your Unity account.
-   - `UNITY_PASSWORD`: your Unity account password, only if required by the selected GameCI activation method.
-5. Do not commit the `.ulf` file, passwords, or license material to the repository. Do not paste them into an issue, chat, or workflow log.
+1. Confirm all three secrets exist (the values themselves must remain private).
+2. Open **Actions → Build Carrera Hybrid for Windows**.
+3. Select **Run workflow** on main.
+4. Inspect the **Build Windows x64 Player** job.
+5. If successful, download the Windows x64 build artifact.
 
-The existing `.github/workflows/build-windows.yml` reads these values from GitHub Secrets. It never writes them into the repository.
-
-For a Unity Pro serial-key workflow, GameCI's documentation describes `UNITY_SERIAL`, `UNITY_EMAIL`, and `UNITY_PASSWORD` instead. Follow the method that matches the actual license assigned to your Unity account; do not create secrets for a license type you do not have.
-
-## 4. Run the Windows build
-
-After the required secrets are configured:
-
-1. Open **Actions → Build Carrera Hybrid for Windows**.
-2. Select **Run workflow**.
-3. Open the run and inspect the **Build Windows x64** step.
-4. If it succeeds, download the `CarreraHybrid-Windows-x64-...` artifact.
-
-The build uses Unity `6000.0.84f1`, matching the version identified in the Android APK.
+The project is pinned to Unity 6000.0.84f1. The CI build uses game-ci/unity-builder@v4.
 
 ## Troubleshooting
 
-- **No artifact:** the activation workflow failed before the upload step. Open the run log and inspect the activation action error.
-- **ALF generated but Unity portal rejects it:** check the license type. An ALF does not grant a license and cannot convert an unsupported license type into a supported one.
-- **Build says no valid license:** confirm the full license file contents were copied to `UNITY_LICENSE`, not the filename or a path.
-- **Unity Personal:** activate in Unity Hub with your Unity ID. Unity's current documentation says manual ALF activation is not supported for Personal licenses.
-- **Unity version changed:** regenerate/revalidate the activation material for the exact Editor version used by CI.
+- **No Unity_lic.ulf:** repeat the Add license → Get a free Personal license flow while signed in to Unity Hub, then check C:\ProgramData\Unity.
+- **No Personal option:** confirm you are signed into the intended Unity account and that it is eligible for Unity Personal.
+- **License is invalid in CI:** verify that UNITY_LICENSE contains the complete file contents (not a path or filename), and that email/password correspond to the same Unity account.
+- **Authentication failure:** check the Unity account password and any account security requirements. Never print secrets into logs.
+- **Build fails after activation:** inspect the Unity compilation/build error separately; a valid license only resolves activation.
+- **ALF portal says Personal is unsupported:** expected. Do not use the portal for Personal; use Unity Hub and the GameCI Personal workflow above.
