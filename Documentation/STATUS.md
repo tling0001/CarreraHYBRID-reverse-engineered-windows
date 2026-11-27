@@ -14,6 +14,8 @@
 - Desktop settings for fullscreen/windowed mode and 60/120 FPS target.
 - Explicit status messages where backend authentication, account recovery, online career, original 3D assets or BLE functionality are not implemented.
 - GitHub Actions Windows x64 build workflow.
+- Manually triggered legacy GameCI ALF request workflow that uploads the activation request as a downloadable artifact; the ALF is not itself a license.
+- Unity Editor asset inventory tool at Carrera Hybrid → Recovery → Generate Asset Inventory. It reports imported textures, sprites, meshes, materials, fonts, animation clips, prefabs, scenes and likely car/track/UI paths without modifying source assets.
 
 ## Fidelity and functional limitations
 This is a newly authored approximation based on recovered Android scene names, class/type names and bridge behavior. It is not the original Android UI, and no pixel-identical claim is made. Exact layouts, typography, sprites, animations, prefabs, 3D car/track models, Visual Scripting graphs and localized strings must be imported/reconstructed from an AssetRipper export and compared against Android screenshots.
@@ -21,11 +23,11 @@ This is a newly authored approximation based on recovered Android scene names, c
 The local Race view is a UI/handling prototype, not the original physics, track simulation, multiplayer or car-control implementation. It does not send BLE packets. Login, registration and password recovery validate input locally but never claim server success or transmit credentials. Online multiplayer, career persistence, rewards and firmware updates remain unimplemented.
 
 ## Next integration work
-1. Obtain AssetRipper export and map the six original scene hierarchies, prefabs, UI sprites, fonts, materials, animations and Visual Scripting graphs.
-2. Replace the approximate Startup/Login screens with the recovered original scene content, then verify all reachable states and dialogs before proceeding to Menu.
+1. Import an AssetRipper export and run the asset inventory tool; map the six original scene hierarchies, prefabs, UI sprites, fonts, materials, animations and Visual Scripting graphs.
+2. Replace the approximate Startup screen with the recovered original content and verify every reachable state before proceeding to Login; then continue in order through Menu, Lobby, Race and Race Result.
 3. Recover backend endpoint/request/authentication contracts and port them without inventing responses.
 4. Recover the complete BLE packet/notification protocol and implement Windows GATT + Nordic DFU; test on physical Carrera hardware before enabling car control.
 5. Replace the practice prototype with original track, vehicle, physics, HUD, race session, multiplayer and results logic.
 
 ## Build
-Open with Unity `6000.0.84f1` and build `StandaloneWindows64`. GitHub Actions uses `game-ci/unity-builder@v4`. Configure `UNITY_LICENSE`, `UNITY_EMAIL` and `UNITY_PASSWORD` repository secrets as required by the Unity license method. A successful CI build verifies the reconstruction prototype, not full feature parity.
+Open with Unity `6000.0.84f1` and build `StandaloneWindows64`. GitHub Actions uses `game-ci/unity-builder@v4`. Configure the license secrets described in [UNITY-LICENSE-SETUP.md](UNITY-LICENSE-SETUP.md), using the method appropriate to your actual Unity license type. Unity Personal licenses should be activated through Unity Hub when manual ALF activation is unsupported. A successful CI build verifies the reconstruction prototype, not full feature parity.
